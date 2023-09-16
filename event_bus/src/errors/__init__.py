@@ -1,0 +1,1 @@
+from event_bus.src.errors.type_not_serializable_error import TypeNotSerializableError
