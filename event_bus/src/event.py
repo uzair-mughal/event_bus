@@ -1,62 +1,58 @@
-import hashlib
 import json
-from datetime import datetime
-from typing import Any, Dict, Optional
-from event_bus.src.util import serialize
+import hashlib
+from datetime import date, datetime
+from event_bus.src.errors import TypeNotSerializableError
 
 
 class Event:
-    def __init__(
-        self,
-        name: str,
-        properties: Optional[Dict[str, Any]] = None,
-        timestamp: datetime = datetime.now(),
-        retries: int = 0,
-    ):
-        self.__name = name
-        self.__timestamp = timestamp.replace(microsecond=0)
-        self.__properties = {}
-        self.__retries = retries
+    def __init__(self, name: str, properties: dict, created_at: datetime = None, retries: int = 0, event_id: str = ""):
+        self._name = name
+        self._retries = retries
+        self._properties = properties
+        self._created_at = created_at or datetime.now()
 
-        if properties:
-            for key, value in properties.items():
-                if isinstance(value, datetime):
-                    self.__properties.update({key: value.replace(microsecond=0)})
-                else:
-                    self.__properties.update({key: value})
+        stringified_event = json.dumps(
+            {"header": {"name": self.name}, "body": self.properties}, default=self._serialize, indent=2, sort_keys=True
+        )
 
-        self.__event: Dict[str, Any] = {
-            "name": self.name,
-            "properties": self.properties,
+        self._id = hashlib.md5(stringified_event.encode("utf-8")).hexdigest()
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def properties(self):
+        return self._properties
+
+    @property
+    def created_at(self):
+        return self._created_at
+
+    @property
+    def retries(self):
+        return self._retries
+
+    def increment_retries(self):
+        self._retries += 1
+
+    def decrement_retries(self):
+        self._retries -= 1
+
+    def to_json(self):
+        event = {
+            "header": {"id": self.id, "name": self.name, "created_at": self.created_at, "retries": self.retries},
+            "body": self.properties,
         }
 
-        self.__id = hashlib.md5(
-            json.dumps(self.__event, default=serialize, indent=2, sort_keys=True).encode("utf-8")
-        ).hexdigest()
+        return json.dumps(event, default=self._serialize, indent=2, sort_keys=True)
 
-        self.__event.update({"id": self.id})
-        self.__event.update({"timestamp": self.timestamp})
-        self.__event.update({"retries": self.retries})
+    def _serialize(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return datetime.strftime(obj, "%Y-%m-%d %H:%M:%S")
 
-    @property
-    def id(self) -> str:
-        return self.__id
-
-    @property
-    def name(self) -> str:
-        return self.__name
-
-    @property
-    def timestamp(self) -> datetime:
-        return self.__timestamp
-
-    @property
-    def properties(self) -> dict:
-        return self.__properties
-
-    @property
-    def retries(self) -> int:
-        return self.__retries
-
-    def to_json(self) -> str:
-        return json.dumps(self.__event, default=serialize, indent=2, sort_keys=True)
+        raise TypeNotSerializableError(type(obj))

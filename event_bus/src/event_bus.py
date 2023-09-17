@@ -1,31 +1,52 @@
-import asyncio
-from typing import List, Optional
+import functools
+from typing import List
+from task_runner import execute
 from event_bus.src.event import Event
 from event_bus.src.event_handler import EventHandler
 
 
 class EventBus:
-    def __init__(self, handlers: Optional[List[EventHandler]] = None):
-        self.__handlers = handlers if handlers is not None else []
+    def __init__(
+        self,
+        handlers: List[EventHandler] = [],
+        tasks_limit: int = 1,
+        retry_failures: bool = False,
+        retry_limit: int = 1,
+        retry_timeout: int = 5,
+    ):
+        self._tasks_limit = tasks_limit
+        self._retry_failures = retry_failures
+        self._retry_limit = retry_limit
+        self._retry_timeout = retry_timeout
+        self.register(handlers)
 
-    @property
-    def handlers(self) -> List[EventHandler]:
-        return self.__handlers
+    def register(self, handlers: List[EventHandler]):
+        self._handlers = handlers
 
-    def register_handler(self, handler: EventHandler):
-        self.__handlers.append(handler)
-
-    def unregister_handlers(self):
-        self.__handlers = []
-
-    async def broadcast(self, event: Event, topic: str = "") -> None:
-        if topic == "":
-            topic = event.name
-
+    async def broadcast(self, event: Event, topic: str):
         tasks = []
-        for handler in self.handlers:
-            if handler.is_subscribed_to_topic(topic):
-                tasks.append(handler.handle(event=event, topic=topic))
 
-        if len(tasks) > 0:
-            await asyncio.gather(*tasks)
+        subscribed_handlers = list()
+        for handler in self._handlers:
+            if handler.is_subscribed_to_topic(topic):
+                subscribed_handlers.append(type(handler).__name__)
+                tasks.append(functools.partial(handler.handle, event))
+
+        results = await execute(
+            tasks=tasks,
+            tasks_limit=self._tasks_limit,
+            retry_failures=self._retry_failures,
+            retry_timeout=self._retry_timeout,
+            retry_limit=self._retry_limit,
+        )
+
+        return list(zip(subscribed_handlers, results))
+
+    async def send(self, event: Event, topic: str):
+        for handler in self._handlers:
+            if handler.is_subscribed_to_topic(topic):
+                try:
+                    result = await handler.handle(event)
+                    return (type(handler).__name__, result)
+                except Exception as error:
+                    return (type(handler).__name__, error)
