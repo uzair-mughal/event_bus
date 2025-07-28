@@ -8,7 +8,7 @@ from event_bus.src.event_handler import EventHandler
 class EventBus:
     def __init__(
         self,
-        handlers: List[EventHandler] = [],
+        handlers: List[EventHandler] = None,
         tasks_limit: int = 1,
         retry_failures: bool = False,
         retry_limit: int = 1,
@@ -18,7 +18,7 @@ class EventBus:
         self._retry_failures = retry_failures
         self._retry_limit = retry_limit
         self._retry_timeout = retry_timeout
-        self.register(handlers)
+        self.register(handlers or [])
 
     def register(self, handlers: List[EventHandler]):
         self._handlers = handlers
@@ -49,4 +49,8 @@ class EventBus:
                     result = await handler.handle(event)
                     return (type(handler).__name__, result)
                 except Exception as error:
-                    return (type(handler).__name__, error)
+                    # Continue to next handler if current one fails
+                    continue
+        
+        # If no handler could process the event successfully
+        return None
