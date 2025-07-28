@@ -6,7 +6,7 @@ def serialize(obj: object) -> str:
     if isinstance(obj, datetime):
         return datetime.strftime(obj, "%Y-%m-%dT%H:%M:%S")
 
-    raise TypeNotSerializableError(obj=str(type(obj)))
+    raise TypeNotSerializableError(str(type(obj)))
 
 
 def deserialize(obj: dict) -> dict:

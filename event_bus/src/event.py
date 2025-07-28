@@ -53,6 +53,6 @@ class Event:
 
     def _serialize(self, obj):
         if isinstance(obj, (datetime, date)):
-            return datetime.strftime(obj, "%Y-%m-%d %H:%M:%S")
+            return datetime.strftime(obj, "%Y-%m-%dT%H:%M:%S")
 
         raise TypeNotSerializableError(type(obj))

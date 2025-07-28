@@ -1,5 +1,4 @@
-from pandas import DataFrame
-from typing import List, Union
+from typing import List
 from abc import ABC, abstractmethod
 from event_bus.src.event import Event
 
@@ -9,7 +8,7 @@ class EventHandler(ABC):
         self._topics = topics
 
     @abstractmethod
-    async def handle(self, event: Event, data: DataFrame):
+    async def handle(self, event: Event):
         raise NotImplementedError
 
     def is_subscribed_to_topic(self, topic: str) -> bool:
